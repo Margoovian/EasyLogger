@@ -1,3 +1,3 @@
 Easy amd simple to use logger, easy be it. 
 
-For use in C++20 application 
+For use in any C++20 application 
