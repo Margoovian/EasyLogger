@@ -134,13 +134,15 @@ namespace EasyLogger {
 		template<OpCode OP, int... Vars ,template<OpCode, int...> class... Codes>
 		static constexpr std::string FormatSequence(Codes<OP, Vars...>... codes) {
 
-			auto pack = std::make_tuple(std::forward<Vars>(codes)...);
+			auto pack = std::make_tuple(std::forward<Codes<OP, Vars...>...>(codes)...);
 
 			std::stringstream stream;
 
-			[&] <std::size_t ... p>(std::index_sequence<p...>) {
-				((stream << std::get<p>(codes)), ...);
-			}(std::make_index_sequence<sizeof...(codes)>{});
+			([&]
+				{
+					stream << FormatPremadeEscapeCode(codes);
+
+				} (), ...);
 
 			return stream.str();
 		}
@@ -175,6 +177,24 @@ namespace EasyLogger {
 			}(std::make_index_sequence<sizeof...(vars)>{});
 			
 			return stream.str().erase(stream.str().size()-1);
+		}
+
+		template<OpCode OP, int... Vars, template<OpCode, int...> class Code>
+		static constexpr std::string FormatPremadeEscapeCode(Code<OP, Vars...> code) {
+			return FormatEscapeCode(OP, FormatVariables(Vars...));
+		}
+
+		template<isSequence... Seqs>
+		static std::string CombineSequences(Seqs... sequences) {
+
+			std::stringstream stream;
+
+			([&] {
+				stream << sequences;
+				} (), ...);
+
+			return stream.str();
+
 		}
 
 	};
@@ -217,7 +237,7 @@ namespace EasyLogger {
 		/// <typeparam name="...Vars"></typeparam>
 		/// <param name="...codes"></param>
 		template<OpCode OP, int... Vars, template<OpCode, int...> class... Codes>
-		Sequence(Codes<OP, Vars...>... codes ) : mEval(Formatter::FormatSequence<Codes>(codes...)) {}
+		Sequence(Codes<OP, Vars...>... codes ) : mEval(Formatter::FormatSequence(codes...)) {}
 
 		/// <summary>
 		/// Forms a sequence with 1 escape code from OpCode and Vars
@@ -234,18 +254,7 @@ namespace EasyLogger {
 		/// <typeparam name="...Seqs"></typeparam>
 		/// <param name="...sequences"></param>
 		template<isSequence... Seqs>
-		Sequence(Seqs... sequences) {
-
-			std::stringstream stream;
-
-			([&]{
-				stream << sequences;
-			} (), ...);
-
-			mEval = std::move(stream.str());
-		}
-
-		inline std::string str() const { return mEval; } // Creates new string possible different implementation wanted
+		Sequence(Seqs... sequences) : mEval(Formatter::CombineSequences(sequences...)) {}
 
 		friend std::ostream& operator <<(std::ostream& out, const Sequence& sequence) {
 			return out << sequence.mEval;
@@ -273,10 +282,10 @@ namespace EasyLogger {
 namespace EasyLogger::Comp {
 
 	template<int Red, int Green, int Blue>
-	class Colour : public EscapeCode<SGR, 38, 2, Red, Green, Blue> {};
+	using Colour = EscapeCode<SGR, 38, 2, Red, Green, Blue>;
 
 	template<int Param>
-	class TextSingle : public EscapeCode<SGR, Param> {};
+	using TextSingle = EscapeCode<SGR, Param>;
 
 
 	Sequence CreateColour(int red, int green, int blue) {
@@ -333,11 +342,11 @@ namespace EasyLogger::Comp {
 namespace EasyLogger::Attrs {
 
 	template<OpCode OP, int... Vars, template<OpCode, int...> class... Codes>
-	constexpr Sequence FormSequence(Codes<OP, Vars>... attributes) {
+	constexpr Sequence FormSequence(const Codes<OP, Vars...>&&... attributes) {
 		return Sequence(attributes...);
 	}
 
-	typedef Comp::TextSingle<0> Default;
+	typedef Comp::TextSingle<0				> Default;
 
 	typedef Comp::TextSingle<1				> Bold;
 	typedef Comp::TextSingle<22				> NoBold;
